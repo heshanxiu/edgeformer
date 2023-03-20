@@ -6,10 +6,34 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import GATConv, GCNConv
 
 from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
 
 from src.utils import roc_auc_score, mrr_score, ndcg_score
+
+
+class GCN(nn.Module):
+    def __init__(self, nfeat, nhid, noutput, dropout):
+        """version of GCN."""
+        super(GCN, self).__init__()
+        # self.dropout = 0.6
+        self.dropout = dropout
+        self.gcn1 = GCNConv(nfeat, nhid)
+
+        self.gcn2 = GCNConv(nhid, noutput)
+        self.BatchNorm = torch.nn.BatchNorm1d(num_features=noutput)
+        self.LayerNorm = torch.nn.LayerNorm(noutput)
+
+    def forward(self, x, edge_index, edge_weight):
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.elu(self.gcn1(x, edge_index, edge_weight))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.elu(self.gcn2(x, edge_index, edge_weight))
+        x = self.BatchNorm(x)
+        x = self.LayerNorm(x)
+        return x
+
 
 class EdgeFormerEncoderE(nn.Module):
     def __init__(self, config):
@@ -92,6 +116,7 @@ class EdgeFormersE(BertPreTrainedModel):
         else:
             if pretrain_mode == 'BERTMF':
                 checkpoint = pickle.load(open(os.path.join(pretrain_dir, f'BERTMF_{heter_embed_size}.pt'),'rb'))
+                ## todo: change initial projection
                 self.node_embedding = nn.Parameter(checkpoint['author_embeddings']) # this "author_embedding" name might be ambiguous, but it's not a bug, relax
                 self.node_to_text_transform = nn.Linear(self.heter_embed_size, self.hidden_size)
                 with torch.no_grad():
@@ -146,8 +171,7 @@ class EdgeFormersForEdgeClassification(BertPreTrainedModel):
         self.bert = EdgeFormersE(config)
         self.hidden_size = config.hidden_size
         self.init_weights()
-        self.classifier = nn.Sequential(nn.Linear(config.hidden_size, config.class_num),
-                                    nn.Softmax(dim=1))
+        self.classifier = nn.Sequential(nn.Linear(config.hidden_size, config.class_num), nn.Softmax(dim=1))
         self.loss_func = nn.BCELoss()
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir):

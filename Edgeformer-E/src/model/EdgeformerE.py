@@ -137,6 +137,7 @@ class EdgeFormersE(BertPreTrainedModel):
         # subgraph_node_num = neighbor_ids_batch.shape[1]
 
         # obtain embedding
+        print("input_ids shape {}".format(input_ids.shape))
         embedding_output = self.embeddings(input_ids=input_ids)
         query_node_embed = self.node_to_text_transform(self.node_embedding[query_node_idx])
         key_node_embed = self.node_to_text_transform(self.node_embedding[key_node_idx])

@@ -6,9 +6,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from torch_geometric.nn import GATConv, GCNConv
+from torch_geometric.nn import GATConv, GCNConv
 
-from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
+from transformers.models.bert.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
+# transformers.models.bert.modeling_bert
+# from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
 
 from src.utils import roc_auc_score, mrr_score, ndcg_score
 
@@ -110,7 +112,7 @@ class EdgeFormersE(BertPreTrainedModel):
 
         # print("pretrain_embed {}".format(pretrain_embed))
         # print("pretrain_mode {}".format(pretrain_mode))
-        print("self.node_num {}".format(self.node_num))
+        # print("self.node_num {}".format(self.node_num))
         if not pretrain_embed:
             self.node_embedding = nn.Parameter(torch.FloatTensor(self.node_num, self.heter_embed_size))
             nn.init.xavier_normal_(self.node_embedding)

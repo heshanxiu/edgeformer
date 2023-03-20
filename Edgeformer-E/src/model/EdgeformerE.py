@@ -108,8 +108,9 @@ class EdgeFormersE(BertPreTrainedModel):
         self.node_num = node_num
         self.heter_embed_size = heter_embed_size
 
-        print("pretrain_embed {}".format(pretrain_embed))
-        print("pretrain_mode {}".format(pretrain_mode))
+        # print("pretrain_embed {}".format(pretrain_embed))
+        # print("pretrain_mode {}".format(pretrain_mode))
+        print("self.node_num {}".format(self.node_num))
         if not pretrain_embed:
             self.node_embedding = nn.Parameter(torch.FloatTensor(self.node_num, self.heter_embed_size))
             nn.init.xavier_normal_(self.node_embedding)
@@ -139,7 +140,7 @@ class EdgeFormersE(BertPreTrainedModel):
         # subgraph_node_num = neighbor_ids_batch.shape[1]
 
         # obtain embedding
-        print("input_ids shape {}".format(input_ids.shape))
+        # print("input_ids shape {}".format(input_ids.shape))
         embedding_output = self.embeddings(input_ids=input_ids)
         query_node_embed = self.node_to_text_transform(self.node_embedding[query_node_idx])
         key_node_embed = self.node_to_text_transform(self.node_embedding[key_node_idx])

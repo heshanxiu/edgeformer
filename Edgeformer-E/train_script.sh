@@ -13,4 +13,4 @@
 #SBATCH -t 24:00:00
 
 
-python Edgeformer-E/main.py --data_path "/expanse/lustre/projects/csb176/she2/edgeformer/Edgeformer-N/EdgeformerN-data/Apps"
+python Edgeformer-E/main.py --data_path "/expanse/lustre/projects/csb176/she2/edgeformer/Edgeformer-E/EdgeformerE-data/Apps"

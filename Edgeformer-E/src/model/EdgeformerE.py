@@ -12,27 +12,27 @@ from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddi
 
 from src.utils import roc_auc_score, mrr_score, ndcg_score
 
-
-class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, noutput, dropout):
-        """version of GCN."""
-        super(GCN, self).__init__()
-        # self.dropout = 0.6
-        self.dropout = dropout
-        self.gcn1 = GCNConv(nfeat, nhid)
-
-        self.gcn2 = GCNConv(nhid, noutput)
-        self.BatchNorm = torch.nn.BatchNorm1d(num_features=noutput)
-        self.LayerNorm = torch.nn.LayerNorm(noutput)
-
-    def forward(self, x, edge_index, edge_weight):
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = F.elu(self.gcn1(x, edge_index, edge_weight))
-        x = F.dropout(x, self.dropout, training=self.training)
-        x = F.elu(self.gcn2(x, edge_index, edge_weight))
-        x = self.BatchNorm(x)
-        x = self.LayerNorm(x)
-        return x
+#
+# class GCN(nn.Module):
+#     def __init__(self, nfeat, nhid, noutput, dropout):
+#         """version of GCN."""
+#         super(GCN, self).__init__()
+#         # self.dropout = 0.6
+#         self.dropout = dropout
+#         self.gcn1 = GCNConv(nfeat, nhid)
+#
+#         self.gcn2 = GCNConv(nhid, noutput)
+#         self.BatchNorm = torch.nn.BatchNorm1d(num_features=noutput)
+#         self.LayerNorm = torch.nn.LayerNorm(noutput)
+#
+#     def forward(self, x, edge_index, edge_weight):
+#         x = F.dropout(x, self.dropout, training=self.training)
+#         x = F.elu(self.gcn1(x, edge_index, edge_weight))
+#         x = F.dropout(x, self.dropout, training=self.training)
+#         x = F.elu(self.gcn2(x, edge_index, edge_weight))
+#         x = self.BatchNorm(x)
+#         x = self.LayerNorm(x)
+#         return x
 
 
 class EdgeFormerEncoderE(nn.Module):
@@ -108,6 +108,8 @@ class EdgeFormersE(BertPreTrainedModel):
         self.node_num = node_num
         self.heter_embed_size = heter_embed_size
 
+        print("pretrain_embed {}".format(pretrain_embed))
+        print("pretrain_mode {}".format(pretrain_mode))
         if not pretrain_embed:
             self.node_embedding = nn.Parameter(torch.FloatTensor(self.node_num, self.heter_embed_size))
             nn.init.xavier_normal_(self.node_embedding)

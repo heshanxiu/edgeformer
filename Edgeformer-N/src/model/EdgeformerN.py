@@ -261,7 +261,7 @@ class EdgeFormersN(BertPreTrainedModel):
 
         self.graph_attention = GraphSingleAggregation(config=config)
         self.gcn_conv = GCNConv(64, 768)
-        self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-E/EdgeformerE-data/Apps/train.tsv")
+        self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-N/EdgeformerN-data/Apps/train.tsv")
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir, node_num, heter_embed_size):
         self.node_num = node_num

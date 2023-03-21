@@ -2,9 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="67b8fe96-204b-422f-8b1f-1a355ab94765" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Edgeformer-E/src/model/EdgeformerE.py" beforeDir="false" afterPath="$PROJECT_DIR$/Edgeformer-E/src/model/EdgeformerE.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Edgeformer-E/train_script.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Edgeformer-E/train_script.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Edgeformer-N/train_script.sh" beforeDir="false" afterPath="$PROJECT_DIR$/Edgeformer-N/train_script.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,7 +45,7 @@
       <option name="presentableId" value="Default" />
       <updated>1678312092982</updated>
       <workItem from="1678312094825" duration="8563000" />
-      <workItem from="1679338384427" duration="8188000" />
+      <workItem from="1679338384427" duration="8419000" />
     </task>
     <servers />
   </component>

@@ -6,10 +6,81 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
 
-from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
+# from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
+from transformers.models.bert.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
 
 from src.utils import roc_auc_score, mrr_score, ndcg_score
+
+def load_gcn_subgraph(dir):
+    from tqdm import tqdm
+    from collections import OrderedDict
+
+    user_num, item_num = 87271, 13209
+
+    whole_graph = {}
+
+    with open(dir) as f:
+        data = f.readlines()
+        for line in tqdm(data):
+            a = line.strip().split('\$\$')
+            if len(a) == 3:
+                query_all, key_all, label = a
+            else:
+                print(len(a))
+                # print(a)
+                raise ValueError('stop')
+            
+            query_all = query_all.split('\*\*')
+            key_all = key_all.split('\*\*')
+            tmp_mask_query = []
+            tmp_mask_key = []
+
+            # make sure that length is 5 for query and key
+            assert len(query_all) == 5
+            assert len(key_all) == 5
+
+            qid = int(query_all[0])
+            query_pos_text, query_neg_text, query_pos_neighbors, query_neg_neighbors = [qq.split('\t') for qq in query_all[1:]]
+            kid = int(key_all[0]) + user_num
+            key_pos_text, key_neg_text, key_pos_neighbors, key_neg_neighbors = [kk.split('\t') for kk in key_all[1:]]
+
+            # split the neighbours
+            # query_pos_neighbors = [int(v) for v in query_pos_neighbors]
+            add_query_pos_neighbors = []
+            for v in query_pos_neighbors:
+                if v != "-1":
+                    add_query_pos_neighbors.append(int(v)+user_num)
+            # key_pos_neighbors = [int(v) for v in key_pos_neighbors]
+            add_key_pos_neighbors = []
+            for v in key_pos_neighbors:
+                if v != "-1":
+                    add_key_pos_neighbors.append(int(v))
+
+            if qid in whole_graph:
+                whole_graph[qid].extend(add_query_pos_neighbors)
+            else:
+                whole_graph[qid] = add_query_pos_neighbors
+            
+            if kid in whole_graph:
+                whole_graph[kid].extend(add_key_pos_neighbors)
+            else:
+                whole_graph[kid] = add_key_pos_neighbors
+
+        # for node_id, node_neighbors in whole_graph.items():
+        for i in range(user_num+item_num):
+            if i in whole_graph:
+                node_neighbors = whole_graph[i]
+                node_neighbors = list(set(node_neighbors))
+                if i in node_neighbors:
+                    node_neighbors.remove(i)
+                node_neighbors.insert(0, i)
+                whole_graph[i] = node_neighbors
+            else:
+                whole_graph[i] = [i]
+
+    return whole_graph
 
 class EdgeFormerEncoderE(nn.Module):
     def __init__(self, config):
@@ -79,12 +150,15 @@ class EdgeFormersE(BertPreTrainedModel):
         self.hidden_size = config.hidden_size
         self.embeddings = BertEmbeddings(config=config)
         self.encoder = EdgeFormerEncoderE(config=config)
+        self.gcn_conv = GCNConv(64, 768)
+        self.gcn_subgraph = load_gcn_subgraph("/home/v-weizhiwang/projects/Edgeformers-original/Edgeformer-E/Apps/Edge-N-data/train.tsv")
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir, node_num, heter_embed_size):
         self.node_num = node_num
         self.heter_embed_size = heter_embed_size
 
         if not pretrain_embed:
+            # heter_embed_size = 768
             self.node_embedding = nn.Parameter(torch.FloatTensor(self.node_num, self.heter_embed_size))
             nn.init.xavier_normal_(self.node_embedding)
             self.node_to_text_transform = nn.Linear(self.heter_embed_size, self.hidden_size)
@@ -113,8 +187,28 @@ class EdgeFormersE(BertPreTrainedModel):
 
         # obtain embedding
         embedding_output = self.embeddings(input_ids=input_ids)
-        query_node_embed = self.node_to_text_transform(self.node_embedding[query_node_idx])
-        key_node_embed = self.node_to_text_transform(self.node_embedding[key_node_idx])
+        
+        # obtain embedding
+
+        query_feature_matrix = [self.node_embedding[torch.LongTensor(self.gcn_subgraph[i])] for i in query_node_idx.tolist()]
+        query_neigbor_matrix = []
+        for node_idx in query_node_idx.tolist():
+            nm = torch.stack((torch.zeros_like(torch.arange(len(self.gcn_subgraph[node_idx]))), torch.arange(len(self.gcn_subgraph[node_idx]))))
+            query_neigbor_matrix.append(nm)
+        query_node_embed = torch.stack([self.gcn_conv(query_feature_matrix[i], query_neigbor_matrix[i].to(query_feature_matrix[i].device))[0] for i in range(len(query_feature_matrix))])
+
+        
+        key_feature_matrix = [self.node_embedding[torch.LongTensor(self.gcn_subgraph[i])] for i in key_node_idx.tolist()]
+        key_neighbor_matrix = []
+        for node_idx in key_node_idx.tolist():
+            nm = torch.stack((torch.zeros_like(torch.arange(len(self.gcn_subgraph[node_idx]))), torch.arange(len(self.gcn_subgraph[node_idx]))))
+            key_neighbor_matrix.append(nm)
+        # import pdb
+        # pdb.set_trace()
+        key_node_embed = torch.stack([self.gcn_conv(key_feature_matrix[i], key_neighbor_matrix[i].to(key_feature_matrix[i].device))[0] for i in range(len(key_feature_matrix))])
+
+        # query_node_embed = self.node_to_text_transform(self.node_embedding[query_node_idx])
+        # key_node_embed = self.node_to_text_transform(self.node_embedding[key_node_idx])
 
         # Add station attention mask
         station_mask = torch.ones((all_nodes_num, 2), dtype=attention_mask.dtype, device=attention_mask.device)

@@ -15,26 +15,26 @@ from transformers.models.bert.modeling_bert import BertSelfAttention, BertLayer,
 from src.utils import roc_auc_score, mrr_score, ndcg_score
 
 #
-# class GCN(nn.Module):
-#     def __init__(self, nfeat, nhid, noutput, dropout):
-#         """version of GCN."""
-#         super(GCN, self).__init__()
-#         # self.dropout = 0.6
-#         self.dropout = dropout
-#         self.gcn1 = GCNConv(nfeat, nhid)
-#
-#         self.gcn2 = GCNConv(nhid, noutput)
-#         self.BatchNorm = torch.nn.BatchNorm1d(num_features=noutput)
-#         self.LayerNorm = torch.nn.LayerNorm(noutput)
-#
-#     def forward(self, x, edge_index, edge_weight):
-#         x = F.dropout(x, self.dropout, training=self.training)
-#         x = F.elu(self.gcn1(x, edge_index, edge_weight))
-#         x = F.dropout(x, self.dropout, training=self.training)
-#         x = F.elu(self.gcn2(x, edge_index, edge_weight))
-#         x = self.BatchNorm(x)
-#         x = self.LayerNorm(x)
-#         return x
+class GCN(nn.Module):
+    def __init__(self, nfeat, nhid, noutput, dropout):
+        """version of GCN."""
+        super(GCN, self).__init__()
+        # self.dropout = 0.6
+        self.dropout = dropout
+        self.gcn1 = GCNConv(nfeat, nhid)
+
+        self.gcn2 = GCNConv(nhid, noutput)
+        self.BatchNorm = torch.nn.BatchNorm1d(num_features=noutput)
+        self.LayerNorm = torch.nn.LayerNorm(noutput)
+
+    def forward(self, x, edge_index, edge_weight):
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.elu(self.gcn1(x, edge_index, edge_weight))
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.elu(self.gcn2(x, edge_index, edge_weight))
+        x = self.BatchNorm(x)
+        x = self.LayerNorm(x)
+        return x
 
 
 class EdgeFormerEncoderE(nn.Module):
@@ -64,7 +64,7 @@ class EdgeFormerEncoderE(nn.Module):
             if i > 0:
 
                 ################### You may add edge-type specific transfer here on input_embed. ######################
-                # input_embed = torch.cat((W1(input_embed[:,:int(input_embed.shape[1] / 2)]),W2(input_embed[:,int(input_embed.shape[1] / 2):]), dim=1)
+                # input_embed = torch.cat((W1(input_embed[:,:int(input_embed.shape[1] / 2)]),W2(input_embed[:,int(input_embed.shape[1] / 2):]), dim=1))
                 ################### You may add edge-type specific transfer here on input_embed. ######################
 
                 # update the station in the query/key
@@ -109,10 +109,8 @@ class EdgeFormersE(BertPreTrainedModel):
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir, node_num, heter_embed_size):
         self.node_num = node_num
         self.heter_embed_size = heter_embed_size
+        self.gcn1 = GCNConv(self.heter_embed_size,self.hidden_size)
 
-        # print("pretrain_embed {}".format(pretrain_embed))
-        # print("pretrain_mode {}".format(pretrain_mode))
-        # print("self.node_num {}".format(self.node_num))
         if not pretrain_embed:
             self.node_embedding = nn.Parameter(torch.FloatTensor(self.node_num, self.heter_embed_size))
             nn.init.xavier_normal_(self.node_embedding)
@@ -142,7 +140,6 @@ class EdgeFormersE(BertPreTrainedModel):
         # subgraph_node_num = neighbor_ids_batch.shape[1]
 
         # obtain embedding
-        # print("input_ids shape {}".format(input_ids.shape))
         embedding_output = self.embeddings(input_ids=input_ids)
         query_node_embed = self.node_to_text_transform(self.node_embedding[query_node_idx])
         key_node_embed = self.node_to_text_transform(self.node_embedding[key_node_idx])
@@ -159,6 +156,8 @@ class EdgeFormersE(BertPreTrainedModel):
             embedding_output.dtype).to(embedding_output.device)
         embedding_output = torch.cat([station_placeholder, embedding_output], dim=1)  # N 2+L D
 
+
+        # the query and key node embedding is passed to this large encoder 163
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,

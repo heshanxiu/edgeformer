@@ -12,16 +12,18 @@ from transformers.models.bert.modeling_bert import BertSelfAttention, BertLayer,
 from src.utils import roc_auc_score, mrr_score, ndcg_score
 
 
-def load_gcn_subgraph(dir):
+def load_gcn_subgraph(args):
     from tqdm import tqdm
     from collections import OrderedDict
 
-    # user_num, item_num = 87271, 13209
-    user_num, item_num = 26027, 103295
+    user_num, item_num = args.user_num, args.item_num
+    # user_num, item_num = 26027, 103295
 
     whole_graph = {}
+    path = args.data_path + "/train.tsv"
+    print(path)
 
-    with open(dir) as f:
+    with open(path) as f:
         data = f.readlines()
         for line in tqdm(data):
             a = line.strip().split('\$\$')
@@ -263,7 +265,8 @@ class EdgeFormersN(BertPreTrainedModel):
 
         self.graph_attention = GraphSingleAggregation(config=config)
         self.gcn_conv = GCNConv(64, 768)
-        self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-N/EdgeformerN-data/stackoverflow/train.tsv")
+        # self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-N/EdgeformerN-data/stackoverflow/train.tsv")
+
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir, node_num, heter_embed_size):
         self.node_num = node_num
@@ -373,6 +376,9 @@ class EdgeFormersForNeighborPredict(BertPreTrainedModel):
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir):
         self.bert.init_node_embed(pretrain_embed, pretrain_mode, pretrain_dir, self.node_num, self.heter_embed_size)
+
+    def get_gcn_subgraph(self, args):
+        self.bert.gcn_subgraph = load_gcn_subgraph(args)
 
     def infer(self, center_id_batch, tokens_batch, attention_mask_batch,
                 neighbor_ids_batch, neighbor_mask_batch):

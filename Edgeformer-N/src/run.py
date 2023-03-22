@@ -34,6 +34,7 @@ def load_bert(args):
         model = EdgeFormersForNeighborPredict.from_pretrained(args.model_name_or_path, config=config) if args.pretrain_LM else EdgeFormersForNeighborPredict(config)
         model.node_num, model.edge_type, model.heter_embed_size = args.user_num + args.item_num, args.edge_type, args.heter_embed_size
         model.init_node_embed(args.pretrain_embed, args.pretrain_mode, args.pretrain_dir)
+        model.get_gcn_subgraph(args)
     else:
         raise ValueError('Input Model Name is Incorrect!')
 
@@ -66,6 +67,9 @@ def train(args):
     # load dataset
     if args.data_mode in ['text']:
         args.user_num, args.item_num, args.edge_type = pickle.load(open(os.path.join(args.data_path, 'node_num.pkl'),'rb'))
+        # print(args.user_num)
+        # print(args.item_num)
+
         train_set = load_dataset_text(args, tokenizer, evaluate=False, test=False)
         val_set = load_dataset_text(args, tokenizer, evaluate=True, test=False)
         test_set = load_dataset_text(args, tokenizer, evaluate=True, test=True)
@@ -89,7 +93,7 @@ def train(args):
     model.to(args.device)
 
     if args.load:
-        model.load_state_dict(torch.load(args.load_ckpt_name, map_location="cpu"))
+        model.load_state_dict(torch.load(args.load_ckpt_name, map_location="cpu"), strict=False)
         logging.info('load ckpt:{}'.format(args.load_ckpt_name))
 
     # define DDP here
@@ -170,7 +174,7 @@ def train(args):
                 if best_count >= args.early_stop:
                     start_time = time()
                     ckpt_path = os.path.join(args.data_path, 'ckpt', '{}-{}-{}-{}-best.pt'.format(args.model_type, args.data_mode, args.lr, args.heter_embed_size))
-                    model.load_state_dict(torch.load(ckpt_path, map_location="cpu"))
+                    model.load_state_dict(torch.load(ckpt_path, map_location="cpu"), strict=False)
                     logging.info("Start testing for best")
                     acc = validate(args, model, test_loader)
                     logging.info("test time:{}".format(time() - start_time))
@@ -185,7 +189,7 @@ def train(args):
         start_time = time()
         # load checkpoint
         ckpt_path = os.path.join(args.data_path, 'ckpt', '{}-{}-{}-{}-best.pt'.format(args.model_type, args.data_mode, args.lr, args.heter_embed_size))
-        model.load_state_dict(torch.load(ckpt_path, map_location="cpu"))
+        model.load_state_dict(torch.load(ckpt_path, map_location="cpu"), strict=False)
         logging.info('load ckpt:{}'.format(ckpt_path))
         acc = validate(args, model, test_loader)
         logging.info("test time:{}".format(time() - start_time))
@@ -245,8 +249,10 @@ def test(args):
     # load checkpoint
     start_time = time()
     checkpoint = torch.load(args.load_ckpt_name, map_location="cpu")
-    model.load_state_dict(checkpoint)
+    # model.load_state_dict(checkpoint)
     # model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+    model.load_state_dict(checkpoint, strict=False)
+
     logging.info('load ckpt:{}'.format(args.load_ckpt_name))
 
     # test
@@ -291,7 +297,7 @@ def infer(args):
     assert args.load == True
 
     if args.load:
-        model.load_state_dict(torch.load(args.load_ckpt_name, map_location="cpu"))
+        model.load_state_dict(torch.load(args.load_ckpt_name, map_location="cpu"), strict=False)
         logging.info('load ckpt:{}'.format(args.load_ckpt_name))
 
     # obtain embedding on train set for query node

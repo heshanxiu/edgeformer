@@ -8,8 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 
-from transformers.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
-
+from transformers.models.bert.modeling_bert import BertSelfAttention, BertLayer, BertEmbeddings, BertPreTrainedModel
 from src.utils import roc_auc_score, mrr_score, ndcg_score
 
 
@@ -17,7 +16,8 @@ def load_gcn_subgraph(dir):
     from tqdm import tqdm
     from collections import OrderedDict
 
-    user_num, item_num = 87271, 13209
+    # user_num, item_num = 87271, 13209
+    user_num, item_num = 26027, 103295
 
     whole_graph = {}
 
@@ -80,6 +80,8 @@ def load_gcn_subgraph(dir):
                 whole_graph[i] = node_neighbors
             else:
                 whole_graph[i] = [i]
+
+        whole_graph[-1] = [-1]
 
     return whole_graph
 
@@ -261,7 +263,7 @@ class EdgeFormersN(BertPreTrainedModel):
 
         self.graph_attention = GraphSingleAggregation(config=config)
         self.gcn_conv = GCNConv(64, 768)
-        self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-N/EdgeformerN-data/Apps/train.tsv")
+        self.gcn_subgraph = load_gcn_subgraph("./Edgeformer-N/EdgeformerN-data/stackoverflow/train.tsv")
 
     def init_node_embed(self, pretrain_embed, pretrain_mode, pretrain_dir, node_num, heter_embed_size):
         self.node_num = node_num
@@ -300,34 +302,39 @@ class EdgeFormersN(BertPreTrainedModel):
 
         # obtain embedding
         embedding_output = self.embeddings(input_ids=input_ids)
-        # center_node_embed = self.node_to_text_transform(self.node_embedding[center_id_batch])
-        # neighbor_node_embed = self.node_to_text_transform(self.node_embedding[neighbor_ids_batch])
+        center_node_embed = self.node_to_text_transform(self.node_embedding[center_id_batch])
+        neighbor_node_embed = self.node_to_text_transform(self.node_embedding[neighbor_ids_batch])
 
-
+        # print("neighbor_node_embed shape {}".format(neighbor_node_embed.shape))
+        # exit(0)
         query_feature_matrix = [self.node_embedding[torch.LongTensor(self.gcn_subgraph[i])] for i in
                                 center_id_batch.tolist()]
         query_neigbor_matrix = []
-        for node_idx in center_node_embed.tolist():
+        for node_idx in center_id_batch.tolist():
             nm = torch.stack((torch.zeros_like(torch.arange(len(self.gcn_subgraph[node_idx]))),
                               torch.arange(len(self.gcn_subgraph[node_idx]))))
             query_neigbor_matrix.append(nm)
         center_node_embed = torch.stack(
             [self.gcn_conv(query_feature_matrix[i], query_neigbor_matrix[i].to(query_feature_matrix[i].device))[0] for i
              in range(len(query_feature_matrix))])
+        #
 
-        key_feature_matrix = [self.node_embedding[torch.LongTensor(self.gcn_subgraph[i])] for i in
-                              neighbor_ids_batch.tolist()]
-        key_neighbor_matrix = []
-        for node_idx in neighbor_ids_batch.tolist():
-            nm = torch.stack((torch.zeros_like(torch.arange(len(self.gcn_subgraph[node_idx]))),
-                              torch.arange(len(self.gcn_subgraph[node_idx]))))
-            key_neighbor_matrix.append(nm)
-        # import pdb
-        # pdb.set_trace()
-        neighbor_node_embed = torch.stack(
-            [self.gcn_conv(key_feature_matrix[i], key_neighbor_matrix[i].to(key_feature_matrix[i].device))[0] for i in
-             range(len(key_feature_matrix))])
+        node_embed_list = []
+        for curr_id in neighbor_ids_batch:
+            curr_id = curr_id.tolist()
+            key_feature_matrix = [self.node_embedding[torch.LongTensor(self.gcn_subgraph[i])] for i in curr_id]
+            key_neighbor_matrix = []
+            for node_idx in curr_id:
+                nm = torch.stack((torch.zeros_like(torch.arange(len(self.gcn_subgraph[node_idx]))),
+                                  torch.arange(len(self.gcn_subgraph[node_idx]))))
+                key_neighbor_matrix.append(nm)
+            # import pdb
+            # pdb.set_trace()
+            each_embed_value = torch.stack([self.gcn_conv(key_feature_matrix[i],
+                               key_neighbor_matrix[i].to(key_feature_matrix[i].device))[0] for i in range(len(key_feature_matrix))]).unsqueeze(0)
+            node_embed_list.append(each_embed_value) ## [6, 768]
 
+        neighbor_node_embed = torch.cat(node_embed_list, dim=0)
 
         # Add station attention mask
         # station_mask = torch.zeros((all_nodes_num, 1), dtype=attention_mask.dtype, device=attention_mask.device)
@@ -388,7 +395,7 @@ class EdgeFormersForNeighborPredict(BertPreTrainedModel):
         
         query_embeddings = self.infer(query_ids_batch,token_query_edges_batch, attention_query_edges_batch, 
                                         query_neighbor_ids_batch, query_neighbor_mask_batch)
-        key_embeddings = self.infer(key_ids_batch,token_key_edges_batch, attention_key_edges_batch, 
+        key_embeddings = self.infer(key_ids_batch, token_key_edges_batch, attention_key_edges_batch,
                                         key_neighbor_ids_batch, key_neighbor_mask_batch)
         
         scores = torch.matmul(query_embeddings, key_embeddings.transpose(0, 1))
